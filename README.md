@@ -1,5 +1,5 @@
 # Laravel API Nested Auto Crud
-## Some piece of code develop by my own to help automate CRUD operations throught API with nested and unlimited child objects with validation on all leves. Tested with Laravel 5
+Some piece of code develop by my own to help automate CRUD operations throught API with nested and unlimited child objects with validation on all leves. Tested with Laravel 5
 
 ## Prerequisites
 
