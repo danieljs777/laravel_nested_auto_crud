@@ -9,7 +9,8 @@ PHP 7+, Laravel 5+
 ### Api Controllers :  
 1.  In your controllers, extends \LaravelNestedAutoCrud\Http\Controllers\ApiController
 2.  Define $service with Dependence Injection and $request and send them to parent's constructor as : 
-```	protected $service;
+```
+    protected $service;
     protected $request;
 
 	public function __construct(Request $request, LeadService $service)
@@ -63,6 +64,8 @@ PHP 7+, Laravel 5+
 
     public function store($json_return = false, $callback = null)
     {
+        $this->setRequest("avaliacoes", "tabela_nome", "correspondentes");
+        
         $object = parent::store(true, function ($_object)
                 {
 
@@ -96,6 +99,36 @@ PHP 7+, Laravel 5+
     }
 ```
 
+```
+    public function query(): Builder
+    {
+        if ($this->request->get('filter') == 'unrelated')
+        {
+            return $this->view_model::select('*')->whereRaw('processo_id is null');
+        }
+        elseif ($this->request->get('filter') == 'related')
+        {
+            return $this->view_model::select('*')->whereRaw('processo_id is not null');
+        }
+        else
+        {
+            return $this->view_model::query();
+        }
+    }
+```
+
+```
+    public function show(int $id, $relations = [], $callback = NULL)
+    {
+        return parent::show($id, [], function ($_object)
+                {
+                    if ($_object->processos()->first() == null)
+                        $_object->processo_id = null;
+                    else
+                        $_object->processo_id = $_object->processos()->first()->id;
+                });
+    }
+```
 
 ## Authors
 
