@@ -1,6 +1,6 @@
 <?php
 
-namespace LaravelNestedAutoCrud\Services;
+namespace App\Services;
 
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Excel;
-use LaravelNestedAutoCrud\Modulos\Traits\
+use App\Modulos\Traits\
 {
     OrderByTrait,
     FiltroTrait,
@@ -18,37 +18,37 @@ use LaravelNestedAutoCrud\Modulos\Traits\
 
 /**
  * BaseService is a class helper that provides CRUD operations for all modules,
- * including validation, exception handling, response with http codes output and general operations
+ * including validation, exception handling, response with http codes output and general App operations
  *
- * @author daniel (daniel.js at gmail dot com)
+ * @author daniel
  */
 class BaseService
 {
 
-
     use OrderByTrait,
-        FiltroTrait,
-        SubFiltroTrait;
+        FilterTrait,
+        SubFilterTrait;
 
     protected $model;
     protected $view_model;
     protected $request;
 
-
+    // Constructor to set model for operations, model for datagrid (view) and customized request validation rules
     public function __construct($model, $view_model, $request)
     {
         $this->model      = $model;
         $this->view_model = $view_model;
         $this->request    = $request;
-
     }
 
-    private function query(): Builder
+    // Query method to get all results from its DB view
+    public function query(): Builder
     {
         return $this->view_model::query();
-
     }
 
+    // Index method return the data from DB view and automatically set pagination, filtering and ordering functions
+    // Also callback function can be used for additional customized data output, if required
     public function index($callback = null)
     {
         $limite = $this->request->input('limite');
@@ -59,9 +59,9 @@ class BaseService
 
         $this->orderBy($this->request, $list);
 
-        $this->filtro($this->request, $list);
+        $this->filter($this->request, $list);
 
-        $this->subFiltro($this->request, $list);
+        $this->subFilter($this->request, $list);
 
         if ($callback !== null)
         {
@@ -73,16 +73,20 @@ class BaseService
         $response = array_merge((array) $response->toArray(), ['roles' => $this->roles()]);
 
         return response()->json($response);
-
     }
 
-    public function show(int $id, $relations = [])
+    // Show method gets info about register ID passed and its relationships set.
+    public function show(int $id, $relations = [], $callback = NULL)
     {
-
         try
         {
+
             $obj_model = $this->model::with($relations)->findOrFail($id);
-            $response  = array_merge((array) $obj_model->toArray(), ['roles' => $this->roles()]);
+
+            if (!is_null($callback) && $obj_model !== NULL)
+                $callback($obj_model);
+
+            $response = array_merge((array) $obj_model->toArray(), ['roles' => $this->roles()]);
 
             return response()->json($response, 200);
         }
@@ -92,14 +96,20 @@ class BaseService
         }
         catch (\Exception $error)
         {
+            sendErrorSentry($error);
+
             Log::error('#### ' . __CLASS__ . ':' . __METHOD__ . ':' . __LINE__, [$error]);
             return response()->json(['success' => false, 'message' => $error->getMessage()], 422);
         }
-
     }
 
     private function substore(&$data, &$tab, &$obj_model, &$class)
     {
+//        dump("Entrou Sub $tab");
+//        dump($data);
+//        dump($obj_model->getModel());
+//        dump("Accessing $tab");
+//        dump((!isset($data[$tab]) && empty($data[$tab])));
         if (!isset($data[$tab]) && empty($data[$tab]))
             return;
 
@@ -116,6 +126,7 @@ class BaseService
 
         if (count($req_ids) == 0)
         {
+//            dump($tab);
             $obj_model->{$tab}()->delete();
         }
         else
@@ -125,8 +136,23 @@ class BaseService
 
         foreach ($data[$tab] as $tab_data)
         {
+//            dump($tab_data);
+//            $child_data = self::validate($tab_data, $class);
+//            dump($child_data, $tab);
+            if (method_exists($this, "processa" . str_replace("_", "", ucwords($tab))))
+            {
+                $__model = $obj_model->getModel();
+                $return  = $this->{"processa" . str_replace("_", "", ucwords($tab))}($tab_data, $__model);
 
-            $return = $this->processDefaultChild($tab_data, $obj_model->getModel(), $tab);
+                if ($return !== TRUE)
+                {
+                    throw new \Exception($return);
+                }
+            }
+            else
+            {
+                $return = $this->processDefaultChild($tab_data, $obj_model->getModel(), $tab);
+            }
 
             if ($return !== TRUE && !is_object($return))
             {
@@ -141,13 +167,15 @@ class BaseService
             {
                 foreach ($child_tabs as $_tab => $_class)
                 {
+//                    dump("Entering $_tab");
+//                    dump($tab_data);
+//                    dd($return);
                     $this->substore($tab_data, $_tab, $return, $_class);
                 }
             }
 
             $sub_model = null;
         }
-
     }
 
     public function store($json_return = false, $callback = null)
@@ -161,7 +189,7 @@ class BaseService
             $data = $this->request->all();
 
             $db_data               = self::validate($data, $this->model);
-            $db_data['usuario_id'] = $this->request->user()->id;
+            $db_data['usuario_id'] = @$this->request->user()->id;
             $obj_model             = $this->model::create($db_data);
 
             $tabs = $this->model->getChilds();
@@ -171,6 +199,21 @@ class BaseService
                 foreach ($tabs as $tab => $class)
                 {
                     $this->substore($data, $tab, $obj_model, $class);
+
+//                    if (!isset($data[$tab]) && empty($data[$tab]))
+//                        continue;
+//
+//                    foreach ($data[$tab] as $tab_data)
+//                    {
+//                        $child_data = self::validate($tab_data, $class);
+//
+//                        $return = $this->processDefaultChild($child_data, $obj_model->getModel(), $tab);
+//
+//                        if ($return !== TRUE)
+//                        {
+//                            throw new \Exception($return);
+//                        }
+//                    }
                 }
             }
 
@@ -181,8 +224,10 @@ class BaseService
         }
         catch (\Exception $error)
         {
+            sendErrorSentry($error);
             Log::error('#### ' . __CLASS__ . ':' . __METHOD__ . ':' . __LINE__, [$error]);
             DB::rollBack();
+
             if ($json_return)
             {
                 if (config('app.env') !== 'production')
@@ -203,7 +248,6 @@ class BaseService
             return response()->json(['success' => true, 'message' => '', 'object' => $obj_model], 200);
         else
             return $obj_model;
-
     }
 
     public function update(int $id, $json_return = false, $callback = null)
@@ -223,7 +267,22 @@ class BaseService
             {
                 foreach ($tabs as $tab => $class)
                 {
+
+//                    dump($obj_model);
                     $this->substore($_data, $tab, $obj_model, $class);
+//                    if (!isset($_data[$tab]) && empty($_data[$tab]))
+//                        continue;
+//
+//                    foreach ($_data[$tab] as $tab_data)
+//                    {
+//                        $child_data = self::validate($tab_data, $class);
+//                        $return     = $this->processDefaultChild($child_data, $obj_model->getModel(), $tab);
+//
+//                        if ($return !== TRUE)
+//                        {
+//                            throw new \Exception($return);
+//                        }
+//                    }
                 }
             }
 
@@ -234,7 +293,7 @@ class BaseService
         }
         catch (\Illuminate\Database\Eloquent\ModelNotFoundException $error)
         {
-            Log::error('#### ' . __CLASS__ . ':' . __METHOD__ . ':' . __LINE__, [$error]);
+//            Log::error('#### ' . __CLASS__ . ':' . __METHOD__ . ':' . __LINE__, [$error]);
             DB::rollBack();
             if ($json_return)
                 return response()->json(['success' => false, 'message' => 'Not Found'], 404);
@@ -243,8 +302,10 @@ class BaseService
         }
         catch (\Exception $error)
         {
+            sendErrorSentry($error);
             Log::error('#### ' . __CLASS__ . ':' . __METHOD__ . ':' . __LINE__, [$error]);
             DB::rollBack();
+
             if ($json_return)
             {
                 if (config('app.env') !== 'production')
@@ -265,7 +326,6 @@ class BaseService
             return response()->json(['success' => true, 'message' => '', 'object' => $obj_model], 200);
         else
             return $obj_model;
-
     }
 
     public function destroy(int $id, $callback = null)
@@ -292,11 +352,11 @@ class BaseService
         }
         catch (\Exception $error)
         {
+            sendErrorSentry($error);
             Log::error('#### ' . __CLASS__ . ':' . __METHOD__ . ':' . __LINE__, [$error]);
             DB::rollBack();
             return response()->json(['success' => false, 'message' => $error->getMessage()], 422);
         }
-
     }
 
     public function find($id)
@@ -311,7 +371,6 @@ class BaseService
         {
             throw $error;
         }
-
     }
 
     public function execute($id, $callback = null)
@@ -350,7 +409,6 @@ class BaseService
 
         if (!is_null($callback) && $obj_model !== NULL)
             return $callback($obj_model);
-
     }
 
     public function processChilds($data, $child_node, $default_fk = "", $json_return = false, $use_transaction = false)
@@ -402,7 +460,6 @@ class BaseService
             return response()->json(['success' => true]);
         else
             return true;
-
     }
 
     public function processDefaultChild($child_data, $model, $child_node, $default_fk = "", $json_return = false)
@@ -418,6 +475,9 @@ class BaseService
         try
         {
 
+//            dd($child_data, $default_fk, @$child_data[$default_fk]);
+//            $child_data = array_merge($child_data, [$default_fk => $child_data[$default_fk]]);
+
             $obj = self::validate($child_data, $model->{$child_node}()->getModel());
 
             if (in_array('usuario_id', $model->{$child_node}()->getModel()->getFillable()))
@@ -430,17 +490,28 @@ class BaseService
                 $_id = $obj['id'];
                 unset($obj['id']);
 
+//                dump("alterou", $child_node, $obj);
+
                 $model->{$child_node}()->where('id', $_id)->update($obj);
                 $child_obj = $model->{$child_node}->find($_id);
             }
             else
             {
+//                dump("inseriu", $child_node, $obj);
+
                 $child_obj = $model->{$child_node}()->create($obj);
             }
 
 //            $queries = \DB::getQueryLog();
 //            dd($queries);
         }
+//        catch (\Illuminate\Database\Eloquent\ModelNotFoundException $error)
+//        {
+//            if ($json_return)
+//                return response()->json(['success' => false, 'message' => 'Not Found'], 404);
+//            else
+//                return false;
+//        }
         catch (Exception $error)
         {
             if ($json_return)
@@ -454,7 +525,20 @@ class BaseService
         else
 //            dd("HEY HO");
             return $child_obj;
+    }
 
+    public function setRequest($parent_node, $name, $value)
+    {
+        $items = $this->request->get($parent_node);
+
+        foreach ($items as &$item)
+        {
+            $item[$name] = $value;
+        }
+
+        $this->request->merge([$parent_node => $items]);
+
+        return $this->request;
     }
 
     public static function validate($array, $model)
@@ -462,6 +546,7 @@ class BaseService
         $_model = (!is_object($model)) ? new $model() : $_model = $model;
 
         $atts = $_model->getFillable();
+
         foreach ($array as $key => $item)
         {
             if ($key == 'id')
@@ -473,8 +558,7 @@ class BaseService
             }
             else
             {
-                if (is_numeric(
-                                $key))
+                if (is_numeric($key))
                     unset($array[$key]);
 
                 if (array_search($key, $atts, false) === FALSE)
@@ -482,52 +566,30 @@ class BaseService
             }
         }
 
-
-
         return $array;
-
     }
 
     public function roles()
     {
-        $role = [];
-        return $role;
+        if ($this->request->user())
+        {
+            $role['usuario_gestor'] = \App\Models\Colaborador::is_manager($this->request->user()->id);
+            $role['gestor']         = \App\Models\Colaborador::get_manager($this->request->user()->id);
+            $role['area_empresa']   = \App\Models\Colaborador::get_company_areas($this->request->user()->id);
+            $role['adm_depto']      = \App\Models\Colaborador::in_admin_area($this->request->user()->id);
+            $role['it_depto']       = \App\Models\Colaborador::in_it_area($this->request->user()->id);
 
+            return $role;
+        }
     }
 
-    public function download($filename = "SampleSheet")
+    public function download($filename = "PlanilhaGolaw")
     {
-        $model  = $this->view_model;
-        $fields = $model->getFillable();
 
-        $download = $model->get();
-        $download = collect($download->toArray());
+        $export = new \App\Services\BaseExportService();
+        $export->setModel($this->view_model);
 
-        $download = collect($download)->map(function($item) use($fields)
-        {
-
-            $download = [];
-
-            foreach ($fields as $field)
-            {
-                if (isset($item[$field]))
-                    $download[$field] = $item[$field];
-            }
-
-
-            return $download;
-        });
-
-
-        return Excel::create($filename, function($excel) use ($download, $filename)
-                {
-                    $excel->sheet($filename, function ($sheet) use ($download)
-                    {
-                        $sheet->fromArray($download);
-                    });
-                }
-                )->download('xlsx');
-
+        return Excel::download($export, $filename . "_" . date("Ymd") . ".xlsx");
     }
 
 }

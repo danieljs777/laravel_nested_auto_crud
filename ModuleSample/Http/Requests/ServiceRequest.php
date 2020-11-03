@@ -2,47 +2,8 @@
 
 namespace LaravelNestedAutoCrud\Modulos\DbmCrm\Leads\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
-
-class ServiceRequest extends FormRequest
+class ServiceRequest extends \App\Services\BaseRequest
 {
-
-    public function authorize()
-    {
-        return true;
-
-    }
-
-    public function rules()
-    {
-
-        $rules = [];
-        switch ($this->method())
-        {
-            case 'POST':
-                $rules = $this->rulesPost();
-                break;
-            case 'PUT':
-                $rules = $this->rulesPut();
-                break;
-        }
-
-        return $rules;
-
-    }
-
-    public function response(array $errors)
-    {
-        $error_message = "";
-
-        foreach ($errors as &$error)
-        {
-            $error_message .= implode("<br>", $error) . "<br>";
-        }
-
-        return response()->json(['success' => false, 'message' => $error_message], 422);
-
-    }
 
     private function rulesPost(): array
     {

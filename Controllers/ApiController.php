@@ -1,13 +1,9 @@
 <?php
 
-namespace LaravelNestedAutoCrud\Http\Controllers;
+namespace App\Http\Controllers;
 
-use LaravelNestedAutoCrud\Http\Controllers\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-
-/*
- * @author daniel (daniel.js at gmail dot com)
- */
 
 class ApiController extends Controller
 {

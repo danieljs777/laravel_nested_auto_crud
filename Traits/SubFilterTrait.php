@@ -1,14 +1,14 @@
 <?php
 
-namespace Golaw\Modulos\Traits;
+namespace App\Modulos\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
-trait SubFiltroTrait
+trait SubFilterTrait
 {
 
-    protected function subFiltro(Request $request, Builder &$query)
+    protected function subFilter(Request $request, Builder &$query)
     {
         if ($request->has('search') && is_array($request->input('search')))
         {
@@ -21,15 +21,15 @@ trait SubFiltroTrait
                 {
                     if (in_array($key, array_keys(self::SUBFILTROS)))
                     {
-                        $a_coluna = explode('|', self::SUBFILTROS[$key]);
+                        $a_column = explode('|', self::SUBFILTROS[$key]);
 
-                        $coluna = $a_coluna[0];
+                        $column = $a_column[0];
 
                         $value = '%' . trim($val) . '%';
 
-                        if (isset($a_coluna[1]))
+                        if (isset($a_column[1]))
                         {
-                            switch ($a_coluna[1])
+                            switch ($a_column[1])
                             {
                                 case 'DATE_INTERVAL':
                                     if (!empty($val))
@@ -38,7 +38,7 @@ trait SubFiltroTrait
 
                                         $from = \Carbon\Carbon::createFromFormat('d/m/Y', trim($dates[0]));
                                         $to   = \Carbon\Carbon::createFromFormat('d/m/Y H:i:s', trim($dates[1] . ' 23:59:59'));
-                                        $q    = $q->whereBetween($coluna, [$from, $to]);
+                                        $q    = $q->whereBetween($column, [$from, $to]);
                                     }
                                     break;
 
@@ -47,7 +47,7 @@ trait SubFiltroTrait
                             }
                         }
 
-                        $q->orWhere($coluna, 'like', $value);
+                        $q->orWhere($column, 'like', $value);
                     }
                 }
             });

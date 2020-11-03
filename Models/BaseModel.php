@@ -1,13 +1,13 @@
 <?php
 
-namespace LaravelNestedAutoCrud\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * @author daniel (daniel.js at gmail dot com)
+ *
+ * @author daniel
  */
-
 class BaseModel extends Model
 {
 
@@ -38,9 +38,15 @@ class BaseModel extends Model
 
     }
 
-    public function usuario()
+    public function user()
     {
-        return $this->belongsTo(\LaravelNestedAutoCrud\Models\User::class, 'usuario_id', 'id');
+        return $this->belongsTo(\App\Models\User::class, 'user_id', 'id');
+
+    }
+
+    public function file()
+    {
+        return $this->hasOne(\App\Models\File::class, 'id', 'file_id');
 
     }
 

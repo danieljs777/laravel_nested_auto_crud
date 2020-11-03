@@ -29,8 +29,8 @@ class LeadService extends \LaravelNestedAutoCrud\Services\BaseService
 
 
     use OrderByTrait,
-        FiltroTrait,
-        SubFiltroTrait;
+        FilterTrait,
+        SubFilterTrait;
 
     const FILTROS    = [
         'id'              => 'view_leads.id',

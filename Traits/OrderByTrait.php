@@ -1,6 +1,6 @@
 <?php
 
-namespace Golaw\Modulos\Traits;
+namespace App\Modulos\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
